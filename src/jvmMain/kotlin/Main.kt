@@ -126,7 +126,7 @@ fun EquationGraph(
 @Composable
 fun EquationGraphCanvas(modifier: Modifier = Modifier, onDraw: DrawScope.() -> Unit) =
     Canvas(
-        modifier = modifier.clipToBounds(),
+        modifier = modifier,
         onDraw = onDraw
     )
 
