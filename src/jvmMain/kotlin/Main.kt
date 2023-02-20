@@ -1,16 +1,19 @@
+@file:OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+
 import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.onDrag
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.ZoomOut
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.center
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.StrokeCap
@@ -19,7 +22,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
-import kotlin.math.*
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Composable
 @Preview
@@ -27,16 +31,13 @@ fun App() {
     MaterialTheme {
         Surface {
             Column {
-//                Text(
-//                    "Hello World!",
-//                    modifier = Modifier.fillMaxWidth().border(border = BorderStroke(5.dp, Color.Green))
-//                )
-//                val lineColor = MaterialTheme.colorScheme.primary
                 EquationGraph(
                     modifier = Modifier.fillMaxSize(),
                     equations = listOf(
-                        EquationGraphLine(equation = { ln(it) + 6 }, lineColor = Color.Red, pixelStep = 0.01f),
-                        EquationGraphLine(equation = { sin(it - 2) }, lineColor = Color.Blue, pixelStep = 1f)
+                        EquationGraphLine(equation = { it }, lineColor = Color.Blue, pixelStep = 1f),
+                        EquationGraphLine(equation = { it * it }, lineColor = Color.Red, pixelStep = 1f),
+                        EquationGraphLine(equation = { sin(it) }, lineColor = Color.Cyan, pixelStep = 1f),
+                        EquationGraphLine(equation = { cos(it) }, lineColor = Color.Green, pixelStep = 1f)
                     )
                 )
             }
@@ -62,33 +63,31 @@ data class EquationGraphLine(
 
 @Composable
 fun EquationGraph(
-    modifier: Modifier = Modifier, equations: List<EquationGraphLine>,
-    initUnitToPixelsOfX: Float = 100f,
-    initUnitToPixelsOfY: Float = 100f,
+    modifier: Modifier = Modifier,
+    equations: List<EquationGraphLine>,
+    oneUnitToPixels: Float = 100f
 ) = Box(modifier = modifier) {
     val regex = Regex("""[\d.]*""")
-    var unitToPixelsOfX by remember { mutableStateOf(initUnitToPixelsOfX) }
-    var unitToPixelsOfY by remember { mutableStateOf(initUnitToPixelsOfY) }
-    val unitToPixelsOfXY = { (unitToPixelsOfX + unitToPixelsOfY) / 2 }
-    var textInTextField by remember { mutableStateOf(unitToPixelsOfXY().toString()) }
+    var unitToPixels by remember { mutableStateOf(oneUnitToPixels) }
+    var textInTextField by remember { mutableStateOf(unitToPixels.toString()) }
+    var relativeOffset by remember { mutableStateOf(Offset.Zero) }
     Column {
-        EquationGraphCanvas(modifier = Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
-            equations.forEach {
-                drawEquationLine(
-                    equation = it.equation,
-                    lineColor = it.lineColor,
-                    pointMode = it.pointMode,
-                    cap = it.cap,
-                    lineThickness = it.lineThickness,
-                    pixelStep = it.pixelStep,
-                    oneUnitToPixelsOfX = unitToPixelsOfX,
-                    oneUnitToPixelsOfY = unitToPixelsOfY
-                )
-            }
-        }
-        Row(modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer).padding(8.dp)) {
+        EquationGraphCanvas(
+            modifier = Modifier.fillMaxWidth().weight(1f)
+                .onDrag { relativeOffset = Offset(relativeOffset.x + it.x, relativeOffset.y + it.y) },
+            equations = equations,
+            oneUnitToPixels = unitToPixels,
+            relativeOffset = relativeOffset
+        )
+        Row(
+            modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer).padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Spacer(modifier = Modifier.weight(1f))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 OutlinedTextField(
                     textInTextField,
                     maxLines = 1,
@@ -97,21 +96,18 @@ fun EquationGraph(
                     onValueChange = { newValue ->
                         if (regex.matches(newValue)) textInTextField = newValue
                         textInTextField.toFloatOrNull()?.takeUnless { it == 0f }?.let {
-                            unitToPixelsOfX = it
-                            unitToPixelsOfY = it
+                            unitToPixels = it
                         }
                     })
                 IconButton(onClick = {
-                    unitToPixelsOfX /= 2
-                    unitToPixelsOfY /= 2
-                    textInTextField = unitToPixelsOfXY().toString()
+                    unitToPixels /= 2
+                    textInTextField = unitToPixels.toString()
                 }) {
                     Icon(imageVector = Icons.Filled.ZoomOut, "Zoom Out")
                 }
                 IconButton(onClick = {
-                    unitToPixelsOfX *= 2f
-                    unitToPixelsOfY *= 2f
-                    textInTextField = unitToPixelsOfXY().toString()
+                    unitToPixels *= 2
+                    textInTextField = unitToPixels.toString()
                 }) {
                     Icon(imageVector = Icons.Filled.ZoomIn, "Zoom In")
                 }
@@ -122,14 +118,47 @@ fun EquationGraph(
 }
 
 @Composable
-fun EquationGraphCanvas(modifier: Modifier = Modifier, onDraw: DrawScope.() -> Unit) =
-    Canvas(
-        modifier = modifier
-    ){
-        drawLine(start = Offset(size.center.x, 0f), end = Offset(size.center.x, size.height), color = Color.Black, strokeWidth = 1f, alpha = 0.5f)
-        drawLine(start = Offset(0f, size.center.y), end = Offset(size.width, size.center.y), color = Color.Black, strokeWidth = 1f, alpha = 0.5f)
-        onDraw()
+fun EquationGraphCanvas(
+    modifier: Modifier = Modifier,
+    equations: List<EquationGraphLine>,
+    oneUnitToPixels: Float = 100f,
+    relativeOffset: Offset = Offset.Zero,
+    ratioX: Float = 0.5f,
+    ratioY: Float = 0.5f
+) = Canvas(
+    modifier = modifier
+) {
+    val centerX = size.width * ratioX
+    val centerY = size.height * ratioY
+    drawLine(
+        start = Offset(centerX + relativeOffset.x, 0f),
+        end = Offset(centerX + relativeOffset.x, size.height),
+        color = Color.Black,
+        strokeWidth = 1f,
+        alpha = 0.5f
+    )
+    drawLine(
+        start = Offset(0f, centerY + relativeOffset.y),
+        end = Offset(size.width, centerY + relativeOffset.y),
+        color = Color.Black,
+        strokeWidth = 1f,
+        alpha = 0.5f
+    )
+    equations.forEach {
+        drawEquationLine(
+            equation = it.equation,
+            lineColor = it.lineColor,
+            oneUnitToPixelsOfX = oneUnitToPixels,
+            oneUnitToPixelsOfY = oneUnitToPixels,
+            pointMode = it.pointMode,
+            cap = it.cap,
+            lineThickness = it.lineThickness,
+            pixelStep = it.pixelStep,
+            relativeOffsetX = relativeOffset.x + centerX,
+            relativeOffsetY = relativeOffset.y + centerY
+        )
     }
+}
 
 
 private infix fun ClosedFloatingPointRange<Float>.step(step: Float): List<Float> {
@@ -152,23 +181,20 @@ fun DrawScope.drawEquationLine(
     cap: StrokeCap = StrokeCap.Round,
     lineThickness: Float = 1f,
     pixelStep: Float = 1f,
-    relativeOffsetX: Float = 0.5f,
-    relativeOffsetY: Float = 0.5f
+    relativeOffsetX: Float = 0f,
+    relativeOffsetY: Float = 0f
 ) {
-    val mutableList = mutableListOf<Offset>()
-    val width = size.width
-    val height = size.height
-    val centerX = width * relativeOffsetX
-    val centerY = height * relativeOffsetY
-    //    println("Width: ${size.width}, Height: ${size.height}, CenterX: ${center.x}, CenterY: ${center.y}")
-    for (x in -centerX..width - centerX step pixelStep) mutableList.add(
-        Offset(
-            x,
-            equation.f(x / oneUnitToPixelsOfX) * oneUnitToPixelsOfY
-        )
-    )
-    val points = mutableList.map {
-        it.copy(x = it.x + centerX, y = -it.y + centerY)
+    val points = mutableListOf<Offset>()
+    var isPositive = true
+    var lastY = 0f
+    fun Float.fixNaN(): Float {
+        return this
+    }
+    for (x in 0f..size.width step pixelStep) {
+        val eqX = (x - relativeOffsetX) / oneUnitToPixelsOfX
+        val eqY = -equation.f(eqX).fixNaN()
+        val y = eqY * oneUnitToPixelsOfY + relativeOffsetY
+        points.add(Offset(x, y))
     }
     drawPoints(
         points = points,
