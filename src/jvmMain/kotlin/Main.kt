@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.center
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.StrokeCap
@@ -34,11 +35,8 @@ fun App() {
                 EquationGraph(
                     modifier = Modifier.fillMaxSize(),
                     equations = listOf(
-                        EquationGraphLine(equation = { cos(it) }, lineColor = Color.Red),
-                        EquationGraphLine(equation = { it * it }, lineColor = Color.Blue),
-                        EquationGraphLine(equation = { sin(it) }, lineColor = Color.Green),
-                        EquationGraphLine(equation = { log10(it) }, lineColor = Color.Yellow),
-                        EquationGraphLine(equation = { sqrt(3f.pow(2) - it.pow(2)) }, lineColor = Color.Cyan)
+                        EquationGraphLine(equation = { ln(it) + 6 }, lineColor = Color.Red, pixelStep = 0.01f),
+                        EquationGraphLine(equation = { sin(it - 2) }, lineColor = Color.Blue, pixelStep = 1f)
                     )
                 )
             }
@@ -126,9 +124,12 @@ fun EquationGraph(
 @Composable
 fun EquationGraphCanvas(modifier: Modifier = Modifier, onDraw: DrawScope.() -> Unit) =
     Canvas(
-        modifier = modifier,
-        onDraw = onDraw
-    )
+        modifier = modifier
+    ){
+        drawLine(start = Offset(size.center.x, 0f), end = Offset(size.center.x, size.height), color = Color.Black, strokeWidth = 1f, alpha = 0.5f)
+        drawLine(start = Offset(0f, size.center.y), end = Offset(size.width, size.center.y), color = Color.Black, strokeWidth = 1f, alpha = 0.5f)
+        onDraw()
+    }
 
 
 private infix fun ClosedFloatingPointRange<Float>.step(step: Float): List<Float> {
@@ -159,7 +160,7 @@ fun DrawScope.drawEquationLine(
     val height = size.height
     val centerX = width * relativeOffsetX
     val centerY = height * relativeOffsetY
-//    println("Width: ${size.width}, Height: ${size.height}, CenterX: ${center.x}, CenterY: ${center.y}")
+    //    println("Width: ${size.width}, Height: ${size.height}, CenterX: ${center.x}, CenterY: ${center.y}")
     for (x in -centerX..width - centerX step pixelStep) mutableList.add(
         Offset(
             x,
