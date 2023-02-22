@@ -1,5 +1,8 @@
 @file:OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -14,16 +17,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PointMode
-import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.DrawScope.Companion.DefaultBlendMode
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 @Composable
@@ -67,15 +71,26 @@ data class EquationGraphLine(
 fun EquationGraph(
     modifier: Modifier = Modifier,
     equations: List<EquationGraphLine>,
-    oneUnitToPixels: Float = 100f
+    oneUnitToPixels: Float = 100f,
+    mainlineStyle: LineStyle = defaultMainLine(),
+    mediumLineStyle: LineStyle = defaultMediumLine(),
+    smallLineStyle: LineStyle = defaultSmallLine()
 ) = Box(modifier = modifier) {
     val regex = Regex("""[\d.]*""")
     var unitToPixels by remember { mutableStateOf(oneUnitToPixels) }
+    val animate by animateFloatAsState(
+        targetValue = unitToPixels, animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessVeryLow
+        )
+    )
     var textInTextField by remember { mutableStateOf(unitToPixels.toString()) }
     var relativeOffset by remember { mutableStateOf(Offset.Zero) }
     Column {
         EquationGraphCanvas(
-            modifier = Modifier.fillMaxWidth().weight(1f)
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
                 .pointerInput(Unit) {
                     detectDragGestures { change, dragAmount ->
                         change.consume()
@@ -84,11 +99,16 @@ fun EquationGraph(
                     }
                 },
             equations = equations,
-            oneUnitToPixels = unitToPixels,
-            relativeOffset = relativeOffset
+            oneUnitToPixels = animate,
+            relativeOffset = relativeOffset,
+            mainlineStyle = mainlineStyle,
+            mediumLineStyle = mediumLineStyle,
+            smallLineStyle = smallLineStyle
         )
         Row(
-            modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer).padding(8.dp),
+            modifier = Modifier
+                .background(MaterialTheme.colorScheme.primaryContainer)
+                .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Spacer(modifier = Modifier.weight(1f))
@@ -122,7 +142,6 @@ fun EquationGraph(
             }
         }
     }
-
 }
 
 @Composable
@@ -132,7 +151,10 @@ fun EquationGraphCanvas(
     oneUnitToPixels: Float = 100f,
     relativeOffset: Offset = Offset.Zero,
     ratioX: Float = 0.5f,
-    ratioY: Float = 0.5f
+    ratioY: Float = 0.5f,
+    mainlineStyle: LineStyle = defaultMainLine(),
+    mediumLineStyle: LineStyle = defaultMediumLine(),
+    smallLineStyle: LineStyle = defaultSmallLine()
 ) = Canvas(
     modifier = modifier
 ) {
@@ -140,7 +162,13 @@ fun EquationGraphCanvas(
     val width = size.width
     val centerY = height * ratioY
     val centerX = width * ratioX
-    drawEquationGrid(centerX + relativeOffset.x, centerY + relativeOffset.y)
+    drawEquationGrid(
+        relativeX = centerX + relativeOffset.x,
+        relativeY = centerY + relativeOffset.y,
+        mainlineStyle = mainlineStyle,
+        mediumLineStyle = mediumLineStyle,
+        smallLineStyle = smallLineStyle
+    )
     equations.forEach {
         drawEquationLine(
             equation = it.equation,
@@ -157,83 +185,127 @@ fun EquationGraphCanvas(
     }
 }
 
+open class LineStyle(
+    val color: Color = Color.Gray,
+    val strokeWidth: Float = Stroke.HairlineWidth,
+    val cap: StrokeCap = Stroke.DefaultCap,
+    val pathEffect: PathEffect? = null,
+    val alpha: Float = 1.0f,
+    val colorFilter: ColorFilter? = null,
+    val blendMode: BlendMode = DefaultBlendMode
+)
+
+@Composable
+fun defaultMainLine(
+    color: Color = MaterialTheme.colorScheme.onSurface,
+    strokeWidth: Float = Stroke.HairlineWidth,
+    cap: StrokeCap = Stroke.DefaultCap,
+    pathEffect: PathEffect? = null,
+    alpha: Float = 1.0f,
+    colorFilter: ColorFilter? = null,
+    blendMode: BlendMode = DefaultBlendMode
+) = LineStyle(
+    color = color,
+    strokeWidth = strokeWidth,
+    cap = cap,
+    pathEffect = pathEffect,
+    alpha = alpha,
+    colorFilter = colorFilter,
+    blendMode = blendMode
+)
+
+@Composable
+fun defaultMediumLine(
+    color: Color = MaterialTheme.colorScheme.onSurface,
+    strokeWidth: Float = Stroke.HairlineWidth,
+    cap: StrokeCap = Stroke.DefaultCap,
+    pathEffect: PathEffect? = null,
+    alpha: Float = 0.25f,
+    colorFilter: ColorFilter? = null,
+    blendMode: BlendMode = DefaultBlendMode
+) = LineStyle(
+    color = color,
+    strokeWidth = strokeWidth,
+    cap = cap,
+    pathEffect = pathEffect,
+    alpha = alpha,
+    colorFilter = colorFilter,
+    blendMode = blendMode
+)
+
+@Composable
+fun defaultSmallLine(
+    color: Color = MaterialTheme.colorScheme.onSurface,
+    strokeWidth: Float = Stroke.HairlineWidth,
+    cap: StrokeCap = Stroke.DefaultCap,
+    pathEffect: PathEffect? = null,
+    alpha: Float = 0.1f,
+    colorFilter: ColorFilter? = null,
+    blendMode: BlendMode = DefaultBlendMode
+) = LineStyle(
+    color = color,
+    strokeWidth = strokeWidth,
+    cap = cap,
+    pathEffect = pathEffect,
+    alpha = alpha,
+    colorFilter = colorFilter,
+    blendMode = blendMode
+)
+
 fun DrawScope.drawEquationGrid(
-    relativeX: Float, relativeY: Float
+    relativeX: Float,
+    relativeY: Float,
+    mainlineStyle: LineStyle = LineStyle(alpha = 1f),
+    mediumLineStyle: LineStyle = LineStyle(alpha = 0.25f),
+    smallLineStyle: LineStyle = LineStyle(alpha = 0.1f)
 ) {
-    fun doSome(relative: Float, length: Float, markupStep: Float): MutableList<Float> {
-        val markups = mutableListOf<Float>()
-        val relativeGrid = relative % markupStep
-        var currentMarkupX = relativeGrid
-        while (currentMarkupX > 0f) {
-            markups.add(currentMarkupX)
-            currentMarkupX -= markupStep
-        }
-        currentMarkupX = relativeGrid
-        while (currentMarkupX < length) {
-            markups.add(currentMarkupX)
-            currentMarkupX += markupStep
-        }
-        markups.remove(relative)
-        println(markups)
-        return markups
+    fun doSome(relative: Float, length: Float, markupStep: Float): List<Float> {
+        val size = (length / markupStep).roundToInt()
+        val relativeGrid = (relative % markupStep).let { if (it < 0) it + markupStep else it }
+        val newMarkups = MutableList(size) { it * markupStep + relativeGrid }
+        newMarkups.remove(relative)
+        return newMarkups
     }
 
     val smallMarkupsX = doSome(relativeX, size.width, 25f)
     val smallMarkupsY = doSome(relativeY, size.height, 25f)
     val markupsX = doSome(relativeX, size.width, 100f)
     val markupsY = doSome(relativeY, size.height, 100f)
-    smallMarkupsX.forEach {
+
+    fun drawLine(lineStyle: LineStyle, start: Offset, end: Offset) = with(lineStyle) {
         drawLine(
-            start = Offset(it, 0f),
-            end = Offset(it, size.height),
-            color = Color.Black,
-            strokeWidth = 1f,
-            alpha = 0.05f
+            color = color,
+            start = start,
+            end = end,
+            strokeWidth = strokeWidth,
+            cap = cap,
+            pathEffect = pathEffect,
+            alpha = alpha,
+            colorFilter = colorFilter,
+            blendMode = blendMode
         )
     }
-    smallMarkupsY.forEach {
-        drawLine(
-            start = Offset(0f, it),
-            end = Offset(size.width, it),
-            color = Color.Black,
-            strokeWidth = 1f,
-            alpha = 0.05f
-        )
-    }
-    markupsX.forEach {
-        drawLine(
-            start = Offset(it, 0f),
-            end = Offset(it, size.height),
-            color = Color.Black,
-            strokeWidth = 1f,
-            alpha = 0.1f
-        )
-    }
-    markupsY.forEach {
-        drawLine(
-            start = Offset(0f, it),
-            end = Offset(size.width, it),
-            color = Color.Black,
-            strokeWidth = 1f,
-            alpha = 0.1f
-        )
-    }
+
+    fun drawLineVertically(lineStyle: LineStyle, horizontal: Float) =
+        drawLine(lineStyle, Offset(horizontal, 0f), Offset(horizontal, size.height))
+
+    fun drawLineHorizontally(lineStyle: LineStyle, vertical: Float) =
+        drawLine(lineStyle, Offset(0f, vertical), Offset(size.width, vertical))
+
+    fun fillVertically(lineStyle: LineStyle, list: List<Float>) =
+        list.forEach { drawLineVertically(lineStyle, it) }
+
+    fun fillHorizontally(lineStyle: LineStyle, list: List<Float>) =
+        list.forEach { drawLineHorizontally(lineStyle, it) }
+
+    fillVertically(smallLineStyle, smallMarkupsX)
+    fillHorizontally(smallLineStyle, smallMarkupsY)
+    fillVertically(mediumLineStyle, markupsX)
+    fillHorizontally(mediumLineStyle, markupsY)
     if (relativeX in 0f..size.width)
-        drawLine(
-            start = Offset(relativeX, 0f),
-            end = Offset(relativeX, size.height),
-            color = Color.Black,
-            strokeWidth = 1f,
-            alpha = 1f
-        )
+        drawLineVertically(mainlineStyle, relativeX)
     if (relativeY in 0f..size.height)
-        drawLine(
-            start = Offset(0f, relativeY),
-            end = Offset(size.width, relativeY),
-            color = Color.Black,
-            strokeWidth = 1f,
-            alpha = 1f
-        )
+        drawLineHorizontally(mainlineStyle, relativeY)
 }
 
 
@@ -261,14 +333,15 @@ fun DrawScope.drawEquationLine(
     relativeOffsetY: Float = 0f
 ) {
     val points = mutableListOf<Offset>()
-    var isPositive = true
-    var lastY = 0f
-    fun Float.fixNaN(): Float {
-        return this
-    }
+//    var isPositive = true
+//    var lastY = 0f
+//    fun Float.fixNaN(): Float {
+//        return this
+//    }
     for (x in 0f..size.width step pixelStep) {
         val eqX = (x - relativeOffsetX) / oneUnitToPixelsOfX
-        val eqY = -equation.f(eqX).fixNaN()
+        val eqY = -equation.f(eqX)
+//            .fixNaN()
         val y = eqY * oneUnitToPixelsOfY + relativeOffsetY
         points.add(Offset(x, y))
     }
