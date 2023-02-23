@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalTextApi::class)
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope.Companion.DefaultBlendMode
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.*
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -154,7 +155,8 @@ fun EquationGraphCanvas(
     ratioY: Float = 0.5f,
     mainlineStyle: LineStyle = defaultMainLine(),
     mediumLineStyle: LineStyle = defaultMediumLine(),
-    smallLineStyle: LineStyle = defaultSmallLine()
+    smallLineStyle: LineStyle = defaultSmallLine(),
+    textMeasurer: TextMeasurer = rememberTextMeasurer()
 ) = Canvas(
     modifier = modifier
 ) {
@@ -183,6 +185,8 @@ fun EquationGraphCanvas(
             relativeOffsetY = relativeOffset.y + centerY
         )
     }
+    //Text
+    drawText(textMeasurer = textMeasurer, text = "Test")
 }
 
 open class LineStyle(
