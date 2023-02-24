@@ -27,6 +27,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
+import java.math.RoundingMode
+import java.text.DecimalFormat
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -44,6 +46,7 @@ fun App() {
                         EquationGraphLine(equation = { it }, lineColor = Color.Blue, pixelStep = pixelStep),
                         EquationGraphLine(equation = { it * it }, lineColor = Color.Red, pixelStep = pixelStep),
                         EquationGraphLine(equation = { sin(it) }, lineColor = Color.Cyan, pixelStep = pixelStep),
+                        EquationGraphLine(equation = { cos(it) }, lineColor = Color.Green, pixelStep = pixelStep),
                         EquationGraphLine(equation = { cos(it) }, lineColor = Color.Green, pixelStep = pixelStep)
                     )
                 )
@@ -79,12 +82,6 @@ fun EquationGraph(
 ) = Box(modifier = modifier) {
     val regex = Regex("""[\d.]*""")
     var unitToPixels by remember { mutableStateOf(oneUnitToPixels) }
-    val animate by animateFloatAsState(
-        targetValue = unitToPixels, animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessVeryLow
-        )
-    )
     var textInTextField by remember { mutableStateOf(unitToPixels.toString()) }
     var relativeOffset by remember { mutableStateOf(Offset.Zero) }
     Column {
@@ -100,7 +97,7 @@ fun EquationGraph(
                     }
                 },
             equations = equations,
-            oneUnitToPixels = animate,
+            oneUnitToPixels = unitToPixels,
             relativeOffset = relativeOffset,
             mainlineStyle = mainlineStyle,
             mediumLineStyle = mediumLineStyle,
@@ -156,37 +153,47 @@ fun EquationGraphCanvas(
     mainlineStyle: LineStyle = defaultMainLine(),
     mediumLineStyle: LineStyle = defaultMediumLine(),
     smallLineStyle: LineStyle = defaultSmallLine(),
-    textMeasurer: TextMeasurer = rememberTextMeasurer()
-) = Canvas(
-    modifier = modifier
+    textMeasurer: TextMeasurer = rememberTextMeasurer(),
+    decimalFormat: DecimalFormat = remember { DecimalFormat("#.#####").apply { roundingMode = RoundingMode.HALF_UP } }
 ) {
-    val height = size.height
-    val width = size.width
-    val centerY = height * ratioY
-    val centerX = width * ratioX
-    drawEquationGrid(
-        relativeX = centerX + relativeOffset.x,
-        relativeY = centerY + relativeOffset.y,
-        mainlineStyle = mainlineStyle,
-        mediumLineStyle = mediumLineStyle,
-        smallLineStyle = smallLineStyle
-    )
-    equations.forEach {
-        drawEquationLine(
-            equation = it.equation,
-            lineColor = it.lineColor,
-            oneUnitToPixelsOfX = oneUnitToPixels,
-            oneUnitToPixelsOfY = oneUnitToPixels,
-            pointMode = it.pointMode,
-            cap = it.cap,
-            lineThickness = it.lineThickness,
-            pixelStep = it.pixelStep,
-            relativeOffsetX = relativeOffset.x + centerX,
-            relativeOffsetY = relativeOffset.y + centerY
+    val animate by animateFloatAsState(
+        targetValue = oneUnitToPixels, animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessVeryLow
         )
+    )
+    Canvas(
+        modifier = modifier
+    ) {
+        val height = size.height
+        val width = size.width
+        val centerY = height * ratioY
+        val centerX = width * ratioX
+        drawEquationGrid(
+            relativeX = centerX + relativeOffset.x,
+            relativeY = centerY + relativeOffset.y,
+            mainlineStyle = mainlineStyle,
+            mediumLineStyle = mediumLineStyle,
+            smallLineStyle = smallLineStyle,
+            textMeasurer = textMeasurer,
+            oneUnitToPixels = oneUnitToPixels,
+            decimalFormat = decimalFormat
+        )
+        equations.forEach {
+            drawEquationLine(
+                equation = it.equation,
+                lineColor = it.lineColor,
+                oneUnitToPixelsOfX = animate,
+                oneUnitToPixelsOfY = animate,
+                pointMode = it.pointMode,
+                cap = it.cap,
+                lineThickness = it.lineThickness,
+                pixelStep = it.pixelStep,
+                relativeOffsetX = relativeOffset.x + centerX,
+                relativeOffsetY = relativeOffset.y + centerY
+            )
+        }
     }
-    //Text
-    drawText(textMeasurer = textMeasurer, text = "Test")
 }
 
 open class LineStyle(
@@ -261,9 +268,20 @@ fun DrawScope.drawEquationGrid(
     relativeY: Float,
     mainlineStyle: LineStyle = LineStyle(alpha = 1f),
     mediumLineStyle: LineStyle = LineStyle(alpha = 0.25f),
-    smallLineStyle: LineStyle = LineStyle(alpha = 0.1f)
+    smallLineStyle: LineStyle = LineStyle(alpha = 0.1f),
+    textMeasurer: TextMeasurer,
+    oneUnitToPixels: Float,
+    decimalFormat: DecimalFormat
 ) {
-    fun doSome(relative: Float, length: Float, markupStep: Float): List<Float> {
+
+    fun Float.roundToStr() =
+        if (this < 1000) decimalFormat.format(this)
+        else this.roundToInt().toString()
+
+//    fun String.toAnnotatedString() = buildAnnotatedString { append(this) }
+
+
+    fun doSome(relative: Float, length: Float, markupStep: Int): List<Float> {
         val size = (length / markupStep).roundToInt()
         val relativeGrid = (relative % markupStep).let { if (it < 0) it + markupStep else it }
         val newMarkups = MutableList(size) { it * markupStep + relativeGrid }
@@ -271,10 +289,10 @@ fun DrawScope.drawEquationGrid(
         return newMarkups
     }
 
-    val smallMarkupsX = doSome(relativeX, size.width, 25f)
-    val smallMarkupsY = doSome(relativeY, size.height, 25f)
-    val markupsX = doSome(relativeX, size.width, 100f)
-    val markupsY = doSome(relativeY, size.height, 100f)
+    val smallMarkupsX = doSome(relativeX, size.width, 25)
+    val smallMarkupsY = doSome(relativeY, size.height, 25)
+    val markupsX = doSome(relativeX, size.width, 100)
+    val markupsY = doSome(relativeY, size.height, 100)
 
     fun drawLine(lineStyle: LineStyle, start: Offset, end: Offset) = with(lineStyle) {
         drawLine(
@@ -306,6 +324,22 @@ fun DrawScope.drawEquationGrid(
     fillHorizontally(smallLineStyle, smallMarkupsY)
     fillVertically(mediumLineStyle, markupsX)
     fillHorizontally(mediumLineStyle, markupsY)
+    markupsX.forEach {
+        val number = (it - relativeX) / oneUnitToPixels
+        val text =
+            textMeasurer.measure(buildAnnotatedString {
+                append(number.roundToStr())
+            })
+        drawText(text, topLeft = Offset(if (number < 0) it - text.size.width else it, 0f))
+    }
+    markupsY.forEach {
+        val number = (relativeY - it) / oneUnitToPixels
+        val text =
+            textMeasurer.measure(buildAnnotatedString {
+                append(number.roundToStr())
+            })
+        drawText(text, topLeft = Offset(size.width - text.size.width, if (number > 0) it - text.size.height else it))
+    }
     if (relativeX in 0f..size.width)
         drawLineVertically(mainlineStyle, relativeX)
     if (relativeY in 0f..size.height)
@@ -361,5 +395,3 @@ fun DrawScope.drawEquationLine(
 fun interface Equation {
     fun f(x: Float): Float
 }
-
-
