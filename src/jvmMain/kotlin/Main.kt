@@ -78,7 +78,8 @@ fun EquationGraph(
     oneUnitToPixels: Float = 100f,
     mainlineStyle: LineStyle = defaultMainLine(),
     mediumLineStyle: LineStyle = defaultMediumLine(),
-    smallLineStyle: LineStyle = defaultSmallLine()
+    smallLineStyle: LineStyle = defaultSmallLine(),
+    content: DrawScope.() -> Unit = {}
 ) = Box(modifier = modifier) {
     val regex = Regex("""[\d.]*""")
     var unitToPixels by remember { mutableStateOf(oneUnitToPixels) }
@@ -101,7 +102,8 @@ fun EquationGraph(
             relativeOffset = relativeOffset,
             mainlineStyle = mainlineStyle,
             mediumLineStyle = mediumLineStyle,
-            smallLineStyle = smallLineStyle
+            smallLineStyle = smallLineStyle,
+            content = content
         )
         Row(
             modifier = Modifier
@@ -154,7 +156,14 @@ fun EquationGraphCanvas(
     mediumLineStyle: LineStyle = defaultMediumLine(),
     smallLineStyle: LineStyle = defaultSmallLine(),
     textMeasurer: TextMeasurer = rememberTextMeasurer(),
-    decimalFormat: DecimalFormat = remember { DecimalFormat("#.#####").apply { roundingMode = RoundingMode.HALF_UP } }
+    roundToStr: Float.() -> String = remember {
+        val decimalFormat = DecimalFormat("#.######").apply { roundingMode = RoundingMode.HALF_UP }
+        return@remember {
+            if (this < 1000) decimalFormat.format(this)
+            else this.roundToInt().toString()
+        }
+    },
+    content: DrawScope.() -> Unit = {}
 ) {
     val animate by animateFloatAsState(
         targetValue = oneUnitToPixels, animationSpec = spring(
@@ -177,7 +186,7 @@ fun EquationGraphCanvas(
             smallLineStyle = smallLineStyle,
             textMeasurer = textMeasurer,
             oneUnitToPixels = oneUnitToPixels,
-            decimalFormat = decimalFormat
+            roundToStr = roundToStr
         )
         equations.forEach {
             drawEquationLine(
@@ -193,6 +202,7 @@ fun EquationGraphCanvas(
                 relativeOffsetY = relativeOffset.y + centerY
             )
         }
+        content()
     }
 }
 
@@ -271,15 +281,8 @@ fun DrawScope.drawEquationGrid(
     smallLineStyle: LineStyle = LineStyle(alpha = 0.1f),
     textMeasurer: TextMeasurer,
     oneUnitToPixels: Float,
-    decimalFormat: DecimalFormat
+    roundToStr: Float.() -> String = { toString() }
 ) {
-
-    fun Float.roundToStr() =
-        if (this < 1000) decimalFormat.format(this)
-        else this.roundToInt().toString()
-
-//    fun String.toAnnotatedString() = buildAnnotatedString { append(this) }
-
 
     fun doSome(relative: Float, length: Float, markupStep: Int): List<Float> {
         val size = (length / markupStep).roundToInt()
@@ -320,24 +323,20 @@ fun DrawScope.drawEquationGrid(
     fun fillHorizontally(lineStyle: LineStyle, list: List<Float>) =
         list.forEach { drawLineHorizontally(lineStyle, it) }
 
+    fun measure(number: Float) = textMeasurer.measure(buildAnnotatedString { append(number.roundToStr()) })
+
     fillVertically(smallLineStyle, smallMarkupsX)
     fillHorizontally(smallLineStyle, smallMarkupsY)
     fillVertically(mediumLineStyle, markupsX)
     fillHorizontally(mediumLineStyle, markupsY)
     markupsX.forEach {
         val number = (it - relativeX) / oneUnitToPixels
-        val text =
-            textMeasurer.measure(buildAnnotatedString {
-                append(number.roundToStr())
-            })
+        val text = measure(number)
         drawText(text, topLeft = Offset(if (number < 0) it - text.size.width else it, 0f))
     }
     markupsY.forEach {
         val number = (relativeY - it) / oneUnitToPixels
-        val text =
-            textMeasurer.measure(buildAnnotatedString {
-                append(number.roundToStr())
-            })
+        val text = measure(number)
         drawText(text, topLeft = Offset(size.width - text.size.width, if (number > 0) it - text.size.height else it))
     }
     if (relativeX in 0f..size.width)
